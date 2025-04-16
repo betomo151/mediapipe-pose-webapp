@@ -1,46 +1,30 @@
 import streamlit as st
-import mediapipe as mp
-import tempfile
-import moviepy.editor as mp_editor
-import numpy as np
 import cv2
-import os
+import mediapipe as mp
+import numpy as np
 
-st.title("🎥 MediaPipe Pose 推定 Webアプリ")
+# MediapipeのPoseモジュールをセットアップ
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose()
 
-uploaded_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov", "avi"])
+# Streamlitにアップロードされた動画を表示
+st.title('Mediapipe Pose Estimation WebApp')
 
-if uploaded_file is not None:
-    # 動画を一時ファイルに保存
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    tfile.write(uploaded_file.read())
-    tfile.close()
+video_file = st.file_uploader("Choose a video...", type=["mp4", "mov", "avi"])
+if video_file is not None:
+    # アップロードされた動画をOpenCVで読み込み
+    video_bytes = video_file.read()
+    nparr = np.frombuffer(video_bytes, np.uint8)
+    video = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # 動画のフレームごとにポーズ推定
+    frame_rgb = cv2.cvtColor(video, cv2.COLOR_BGR2RGB)
+    results = pose.process(frame_rgb)
 
-    st.video(tfile.name)
-    st.info("ポーズを解析しています...")
+    # ポーズの描画
+    if results.pose_landmarks:
+        mp.solutions.drawing_utils.draw_landmarks(
+            frame_rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-    # 動画を読み込み
-    video = mp_editor.VideoFileClip(tfile.name)
-    fps = video.fps
-
-    mp_pose = mp.solutions.pose
-    mp_drawing = mp.solutions.drawing_utils
-
-    frames = []
-    with mp_pose.Pose(static_image_mode=False) as pose:
-        for frame in video.iter_frames(fps=fps, dtype="uint8"):
-            image = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            if results.pose_landmarks:
-                mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-            frames.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-
-    st.success("完了！")
-
-    # 書き出し（動画として）
-    out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-    out_clip = mp_editor.ImageSequenceClip(frames, fps=fps)
-    out_clip.write_videofile(out_path, codec="libx264")
-
-    # 表示
-    st.video(out_path)
+    # 結果の表示
+    st.image(frame_rgb)
