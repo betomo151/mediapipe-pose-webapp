@@ -2,7 +2,7 @@ import streamlit as st
 import cv2
 import mediapipe as mp
 import numpy as np
-from io import BytesIO
+import tempfile
 
 # MediapipeのPoseモジュールをセットアップ
 mp_pose = mp.solutions.pose
@@ -13,12 +13,13 @@ st.title('Mediapipe Pose Estimation WebApp')
 
 video_file = st.file_uploader("Choose a video...", type=["mp4", "mov", "avi"])
 if video_file is not None:
-    # BytesIOを使ってファイルオブジェクトを読み込む
-    video_bytes = video_file.read()
-    video = BytesIO(video_bytes)
-    
-    # ビデオキャプチャオブジェクトを作成
-    cap = cv2.VideoCapture(video)
+    # 一時的なファイルを作成して動画を保存
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video_file:
+        temp_video_file.write(video_file.read())
+        temp_video_path = temp_video_file.name
+
+    # cv2.VideoCaptureで動画を開く
+    cap = cv2.VideoCapture(temp_video_path)
 
     # 動画のフレームごとに処理
     while cap.isOpened():
