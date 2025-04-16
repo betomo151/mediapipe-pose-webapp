@@ -21,6 +21,14 @@ if video_file is not None:
     # cv2.VideoCaptureで動画を開く
     cap = cv2.VideoCapture(temp_video_path)
 
+    # 出力する動画のファイル名とコーデックを設定
+    output_video_path = "output_video.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # mp4形式で書き出し
+    fps = cap.get(cv2.CAP_PROP_FPS)  # 元の動画のFPSを取得
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # 幅
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 高さ
+    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+
     # 動画のフレームごとに処理
     while cap.isOpened():
         ret, frame = cap.read()
@@ -34,9 +42,13 @@ if video_file is not None:
         # ポーズの描画
         if results.pose_landmarks:
             mp.solutions.drawing_utils.draw_landmarks(
-                frame_rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-        # 結果の表示
-        st.image(frame_rgb)
+        # 処理したフレームを動画に書き出し
+        out.write(frame)
 
     cap.release()
+    out.release()
+
+    # 出力した動画を表示
+    st.video(output_video_path)
