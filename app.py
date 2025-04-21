@@ -1,61 +1,44 @@
 import streamlit as st
-import cv2
 import mediapipe as mp
+import cv2
 import numpy as np
+from moviepy.editor import VideoFileClip
 import tempfile
-import os
 
-# Mediapipe のポーズ推定の設定
+# Mediapipe設定
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
 
-# Streamlit アプリのタイトル
-st.title("動画内の身体特徴点推定")
+# StreamlitによるUI
+st.title("Mediapipe 身体特徴点推定 Webアプリ")
+st.write("動画ファイルをアップロードして、身体特徴点を推定します。")
 
-# 動画ファイルのアップロード
-uploaded_video = st.file_uploader("動画をアップロード", type=["mp4", "avi", "mov"])
+# アップロード機能
+uploaded_video = st.file_uploader("動画をアップロード", type=["mp4", "mov", "avi"])
 
+# アップロードされたファイルがある場合
 if uploaded_video is not None:
-    # 一時ファイルとして保存
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(uploaded_video.read())
-        temp_file_path = temp_file.name
+    # 一時的なファイルとして保存
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile.write(uploaded_video.read())
+    video_path = tfile.name
+    
+    # 動画ファイルの読み込み
+    video = VideoFileClip(video_path)
 
-    # OpenCV で動画を読み込み
-    cap = cv2.VideoCapture(temp_file_path)
-    if not cap.isOpened():
-        st.error("動画の読み込みに失敗しました。")
-    else:
-        # 動画情報の取得
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # 変換用の動画処理関数
+    def process_frame(frame):
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(frame_rgb)
+        
+        if results.pose_landmarks:
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+        
+        return frame
 
-        # Streamlit のフレーム表示用
-        frame_placeholder = st.empty()
+    # 動画フレーム処理
+    processed_video = video.fl_image(process_frame)
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            # BGRからRGBに変換
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # ポーズ推定
-            results = pose.process(frame_rgb)
-
-            if results.pose_landmarks:
-                # 姿勢のランドマークを描画
-                mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-            # フレームをStreamlitに表示
-            frame_placeholder.image(frame, channels="BGR", use_container_width=True)
-
-            # フレームごとのディレイを設定（適切なFPSで再生）
-            cv2.waitKey(int(1000 / fps))
-
-        # 動画終了後にリソースを解放
-        cap.release()
-        os.remove(temp_file_path)
+    # 動画をStreamlitに表示
+    st.video(processed_video.write_videofile(tempfile.NamedTemporaryFile(delete=False).name))
