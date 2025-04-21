@@ -3,55 +3,65 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import tempfile
+import os
+from moviepy.editor import VideoFileClip
 
-# MediapipeのPoseモジュールをセットアップ
+# Mediapipe のポーズ推定の設定
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+mp_drawing = mp.solutions.drawing_utils
 
-# Streamlitにアップロードされた動画を表示
-st.title('Mediapipe Pose Estimation WebApp')
+# Streamlit アプリのタイトル
+st.title("動画内の身体特徴点推定")
 
-video_file = st.file_uploader("Choose a video...", type=["mp4", "mov", "avi"])
-if video_file is not None:
-    # 一時的なファイルを作成して動画を保存
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video_file:
-        temp_video_file.write(video_file.read())
-        temp_video_path = temp_video_file.name
+# 動画ファイルのアップロード
+uploaded_video = st.file_uploader("動画をアップロード", type=["mp4", "avi", "mov"])
 
-    # cv2.VideoCaptureで動画を開く
-    cap = cv2.VideoCapture(temp_video_path)
+if uploaded_video is not None:
+    # 一時ファイルとして保存
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(uploaded_video.read())
+        temp_file_path = temp_file.name
 
-    # 出力する動画のファイル名とコーデックを設定
-    output_video_path = "/tmp/output_video.mp4"  # 一時ディレクトリに保存
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MP4形式で書き出し
-    fps = cap.get(cv2.CAP_PROP_FPS)  # 元の動画のFPSを取得
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)  # 幅を半分に
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / 2)  # 高さを半分に
-    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+    # OpenCV で動画を読み込み
+    cap = cv2.VideoCapture(temp_file_path)
+    if not cap.isOpened():
+        st.error("動画の読み込みに失敗しました。")
+    else:
+        # 動画情報の取得
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # 動画のフレームごとに処理
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # 書き出し先の動画ファイルパス
+        output_video_path = "/tmp/output_video.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
-        # Mediapipeでポーズ推定
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(frame_rgb)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        # ポーズの描画
-        if results.pose_landmarks:
-            mp.solutions.drawing_utils.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            # BGRからRGBに変換
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # 処理したフレームを動画に書き出し
-        out.write(frame)
+            # ポーズ推定
+            results = pose.process(frame_rgb)
 
-    cap.release()
-    out.release()
+            if results.pose_landmarks:
+                # 姿勢のランドマークを描画
+                mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-    # 出力した動画のパスを表示
-    st.write(f"Video saved at: {output_video_path}")
+            # 結果を動画ファイルに書き込む
+            out.write(frame)
 
-    # 出力した動画を表示
-    st.video(output_video_path)
+        # 動画処理完了
+        cap.release()
+        out.release()
+
+        # 動画再生
+        st.video(output_video_path)
+
+        # 一時ファイル削除
+        os.remove(temp_file_path)
