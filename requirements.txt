@@ -1,4 +1,4 @@
-moviepy==1.0.3
-mediapipe==0.8.9
-opencv-python-headless==4.5.3.56
 streamlit
+mediapipe
+opencv-python-headless==4.5.3.56
+moviepy==1.0.3
