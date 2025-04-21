@@ -4,7 +4,6 @@ import mediapipe as mp
 import numpy as np
 import tempfile
 import os
-from moviepy.editor import VideoFileClip
 
 # Mediapipe のポーズ推定の設定
 mp_pose = mp.solutions.pose
@@ -33,10 +32,8 @@ if uploaded_video is not None:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        # 書き出し先の動画ファイルパス
-        output_video_path = "/tmp/output_video.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+        # Streamlit のフレーム表示用
+        frame_placeholder = st.empty()
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -53,15 +50,9 @@ if uploaded_video is not None:
                 # 姿勢のランドマークを描画
                 mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-            # 結果を動画ファイルに書き込む
-            out.write(frame)
+            # フレームをStreamlitに表示
+            frame_placeholder.image(frame, channels="BGR", use_column_width=True)
 
-        # 動画処理完了
+        # 動画終了後にリソースを解放
         cap.release()
-        out.release()
-
-        # 動画再生
-        st.video(output_video_path)
-
-        # 一時ファイル削除
         os.remove(temp_file_path)
