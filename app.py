@@ -22,11 +22,11 @@ if video_file is not None:
     cap = cv2.VideoCapture(temp_video_path)
 
     # 出力する動画のファイル名とコーデックを設定
-    output_video_path = "output_video.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # mp4形式で書き出し
+    output_video_path = "/tmp/output_video.mp4"  # 一時ディレクトリに保存
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MP4形式で書き出し
     fps = cap.get(cv2.CAP_PROP_FPS)  # 元の動画のFPSを取得
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # 幅
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))  # 高さ
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)  # 幅を半分に
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / 2)  # 高さを半分に
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
     # 動画のフレームごとに処理
@@ -49,6 +49,9 @@ if video_file is not None:
 
     cap.release()
     out.release()
+
+    # 出力した動画のパスを表示
+    st.write(f"Video saved at: {output_video_path}")
 
     # 出力した動画を表示
     st.video(output_video_path)
