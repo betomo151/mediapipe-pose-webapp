@@ -53,6 +53,9 @@ if uploaded_video is not None:
             # フレームをStreamlitに表示
             frame_placeholder.image(frame, channels="BGR", use_container_width=True)
 
+            # フレームごとのディレイを設定（適切なFPSで再生）
+            cv2.waitKey(int(1000 / fps))
+
         # 動画終了後にリソースを解放
         cap.release()
         os.remove(temp_file_path)
