@@ -1,4 +1,4 @@
+opencv-python-headless==4.7.0.72
+mediapipe
+moviepy
 streamlit
-mediapipe==0.8.9  # mediapipeのバージョンを指定
-opencv-python-headless==4.5.3.56  # 安定したバージョンを指定
-moviepy==1.0.3  # 必要なバージョンを指定
