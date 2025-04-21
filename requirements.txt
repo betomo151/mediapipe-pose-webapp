@@ -1,4 +1,4 @@
-opencv-python-headless==4.7.0.72
-mediapipe
-moviepy
 streamlit
+mediapipe==0.8.9
+opencv-python==4.5.3.56  # 通常版
+moviepy==1.0.3
