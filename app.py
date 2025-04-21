@@ -51,7 +51,7 @@ if uploaded_video is not None:
                 mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
             # フレームをStreamlitに表示
-            frame_placeholder.image(frame, channels="BGR", use_column_width=True)
+            frame_placeholder.image(frame, channels="BGR", use_container_width=True)
 
         # 動画終了後にリソースを解放
         cap.release()
