@@ -1,27 +1,26 @@
 import streamlit as st
-import tempfile
 import cv2
+import numpy as np
 from video_utils import process_video
+from io import BytesIO
 
 st.title("🧍 Mediapipe Pose Detection Web App")
 
 video_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov", "avi"])
 
 if video_file:
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(video_file.read())
     st.info("処理中...しばらくお待ちください")
 
-    frames = process_video(tfile.name)
+    # メモリ上に保存してOpenCVで読み込めるように
+    video_bytes = np.frombuffer(video_file.read(), np.uint8)
+    video_array = cv2.imdecode(video_bytes, cv2.IMREAD_COLOR)
 
-    st.success("処理完了！")
+    if video_array is None:
+        st.error("動画を読み込めませんでした")
+    else:
+        # 一時ファイル作成せず、直接処理
+        frames = process_video(video_file)
 
-    height, width, _ = frames[0].shape
-    out_path = tfile.name + "_out.mp4"
-    out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), 15, (width, height))
+        st.success("処理完了！")
 
-    for frame in frames:
-        out.write(frame)
-    out.release()
-
-    st.video(out_path)
+        st.write("※保存・出力は別途実装が必要です")
