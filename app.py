@@ -1,58 +1,27 @@
 import streamlit as st
-import cv2
-import mediapipe as mp
-import numpy as np
 import tempfile
-import os
+import cv2
+from video_utils import process_video
 
-# Mediapipe のポーズ推定の設定
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-mp_drawing = mp.solutions.drawing_utils
+st.title("🧍 Mediapipe Pose Detection Web App")
 
-# Streamlit アプリのタイトル
-st.title("動画内の身体特徴点推定")
+video_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov", "avi"])
 
-# 動画ファイルのアップロード
-uploaded_video = st.file_uploader("動画をアップロード", type=["mp4", "avi", "mov"])
+if video_file:
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile.write(video_file.read())
+    st.info("処理中...しばらくお待ちください")
 
-if uploaded_video is not None:
-    # 一時ファイルとして保存
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(uploaded_video.read())
-        temp_file_path = temp_file.name
+    frames = process_video(tfile.name)
 
-    # OpenCV で動画を読み込み
-    cap = cv2.VideoCapture(temp_file_path)
-    if not cap.isOpened():
-        st.error("動画の読み込みに失敗しました。")
-    else:
-        # 動画情報の取得
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    st.success("処理完了！")
 
-        # Streamlit のフレーム表示用
-        frame_placeholder = st.empty()
+    height, width, _ = frames[0].shape
+    out_path = tfile.name + "_out.mp4"
+    out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), 15, (width, height))
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+    for frame in frames:
+        out.write(frame)
+    out.release()
 
-            # BGRからRGBに変換
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # ポーズ推定
-            results = pose.process(frame_rgb)
-
-            if results.pose_landmarks:
-                # 姿勢のランドマークを描画
-                mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-            # フレームをStreamlitに表示
-            frame_placeholder.image(frame, channels="BGR", use_container_width=True)
-
-        # 動画終了後にリソースを解放
-        cap.release()
-        os.remove(temp_file_path)
+    st.video(out_path)
