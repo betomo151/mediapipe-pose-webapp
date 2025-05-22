@@ -5,49 +5,46 @@ import tempfile
 import os
 from io import BytesIO
 
-st.title("📹 Mediapipe Pose WebApp")
+st.set_page_config(layout="wide")
+st.title("📹 Mediapipe Pose - 動画処理＆再生アプリ")
 
-video_file = st.file_uploader("🎞️ 動画をアップロードしてください（mov, mp4, avi）", type=["mp4", "mov", "avi"])
+video_file = st.file_uploader("🎞️ 動画をアップロード（.mov, .mp4, .avi）", type=["mp4", "mov", "avi"])
 
 if video_file is not None:
-    # 一時ファイルへ保存
-    input_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    input_temp.write(video_file.read())
-    input_temp.flush()
+    # アップロード動画を一時ファイルに保存
+    temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    temp_input.write(video_file.read())
+    temp_input.flush()
 
-    # 出力先パス（mp4）
-    output_path = os.path.join(tempfile.gettempdir(), "mediapipe_output.mp4")
+    # 出力用の一時ファイルパス（.mp4で出力）
+    output_path = os.path.join(tempfile.gettempdir(), "output_processed.mp4")
 
-    cap = cv2.VideoCapture(input_temp.name)
+    cap = cv2.VideoCapture(temp_input.name)
     if not cap.isOpened():
-        st.error("❌ 動画を開けませんでした。形式やコーデックを確認してください。")
+        st.error("❌ 動画を開けません。形式やコーデックを確認してください。")
     else:
-        st.info("✅ 動画を読み込みました。Pose 処理中...")
+        st.info("⏳ 動画処理中...")
 
-        # Mediapipe
-        mp_drawing = mp.solutions.drawing_utils
-        mp_pose = mp.solutions.pose
-
+        # 動画情報の取得
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
 
-        # MP4で保存
+        # VideoWriterの初期化
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-        with mp_pose.Pose(static_image_mode=False,
-                          model_complexity=1,
-                          min_detection_confidence=0.5,
-                          min_tracking_confidence=0.5) as pose:
+        # Mediapipe Poseの初期化
+        mp_pose = mp.solutions.pose
+        mp_drawing = mp.solutions.drawing_utils
 
-            while cap.isOpened():
+        with mp_pose.Pose(static_image_mode=False, model_complexity=1) as pose:
+            while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
-
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = pose.process(rgb)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = pose.process(frame_rgb)
 
                 if results.pose_landmarks:
                     mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
@@ -57,9 +54,9 @@ if video_file is not None:
         cap.release()
         out.release()
 
-        st.success("✅ 処理完了！再生はこちら👇")
+        st.success("✅ 処理完了！以下で再生できます：")
 
-        # バイナリ → st.video 再生
-        with open(output_path, 'rb') as f:
+        # 出力動画を読み込み、BytesIOに変換して再生
+        with open(output_path, "rb") as f:
             video_bytes = f.read()
             st.video(BytesIO(video_bytes))
