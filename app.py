@@ -7,26 +7,24 @@ from io import BytesIO
 
 st.title("📹 Mediapipe Pose WebApp")
 
-video_file = st.file_uploader("🎞️ 動画をアップロードしてください", type=["mp4", "mov", "avi"])
+video_file = st.file_uploader("🎞️ 動画をアップロードしてください（mov, mp4, avi）", type=["mp4", "mov", "avi"])
 
 if video_file is not None:
-    # 読み込み用に一時ファイル保存
+    # 一時ファイルへ保存
     input_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     input_temp.write(video_file.read())
     input_temp.flush()
 
-    # 出力用の一時ファイルパス
+    # 出力先パス（mp4）
     output_path = os.path.join(tempfile.gettempdir(), "mediapipe_output.mp4")
 
-    # 動画読み込み
     cap = cv2.VideoCapture(input_temp.name)
-
     if not cap.isOpened():
-        st.error("❌ 動画を開けませんでした。")
+        st.error("❌ 動画を開けませんでした。形式やコーデックを確認してください。")
     else:
-        st.info("✅ Pose処理中...")
+        st.info("✅ 動画を読み込みました。Pose 処理中...")
 
-        # Mediapipe pose 初期化
+        # Mediapipe
         mp_drawing = mp.solutions.drawing_utils
         mp_pose = mp.solutions.pose
 
@@ -34,7 +32,7 @@ if video_file is not None:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
 
-        # 書き込み先 VideoWriter
+        # MP4で保存
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
@@ -48,7 +46,6 @@ if video_file is not None:
                 if not ret:
                     break
 
-                # Mediapipeに渡して処理
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results = pose.process(rgb)
 
@@ -57,13 +54,12 @@ if video_file is not None:
 
                 out.write(frame)
 
-        # ファイルを閉じる
         cap.release()
         out.release()
 
         st.success("✅ 処理完了！再生はこちら👇")
 
-        # バイナリ読み込みして BytesIO 経由で表示
+        # バイナリ → st.video 再生
         with open(output_path, 'rb') as f:
             video_bytes = f.read()
             st.video(BytesIO(video_bytes))
