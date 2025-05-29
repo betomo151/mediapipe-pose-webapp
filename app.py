@@ -1,6 +1,7 @@
 import streamlit as st
 import tempfile
 import cv2
+import numpy as np
 
 def process_video(video_file):
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
@@ -15,8 +16,10 @@ def process_video(video_file):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps == 0 or np.isnan(fps):
-        fps = 25  # fallback
+
+    # ⚠️ fpsの安全確認（型チェックとゼロ回避）
+    if not isinstance(fps, (int, float)) or fps == 0:
+        fps = 25
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
@@ -50,4 +53,4 @@ if uploaded_file is not None:
     result_video = process_video(uploaded_file)
     if result_video:
         st.success("✅ポーズ検出完了！以下の動画で確認できます。")
-        st.video(result_video)  # または st.video(BytesIO(result_video))
+        st.video(result_video)
