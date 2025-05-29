@@ -1,57 +1,49 @@
 import streamlit as st
-import tempfile
 import cv2
-import os
+import tempfile
+import time
+import numpy as np
 
-def process_video(video_file):
-    # 一時ファイルに保存
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    tfile.write(video_file.read())
-    tfile.flush()
-    input_path = tfile.name
+st.title("Streamlit Cloud対応！動画フレーム連続表示サンプル")
 
-    # 動画読み込み
-    cap = cv2.VideoCapture(input_path)
-    if not cap.isOpened():
-        st.error("❌ 動画の読み込みに失敗しました。")
-        return None
-
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 1 or fps > 240 or fps != fps:  # NaN チェック
-        fps = 25  # fallback
-
-    # 出力ファイル
-    temp_out = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    output_path = temp_out.name
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 互換性高め
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        out.write(frame)
-
-    cap.release()
-    out.release()
-
-    with open(output_path, 'rb') as f:
-        return f.read()
-
-st.title("✅ 動画処理テストアプリ")
-
-uploaded_file = st.file_uploader("🎬 MP4動画をアップロードしてください", type=["mp4"])
+uploaded_file = st.file_uploader("MP4動画をアップロードしてください", type=["mp4"])
 
 if uploaded_file is not None:
-    st.video(uploaded_file)
-    st.info("⏳ 処理中...（そのままお待ちください）")
+    # アップロード動画を一時ファイルに保存
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    tfile.write(uploaded_file.read())
+    tfile.flush()
 
-    processed_video = process_video(uploaded_file)
+    cap = cv2.VideoCapture(tfile.name)
 
-    if processed_video:
-        st.success("🎉 処理完了！以下が再生結果です。")
-        st.video(processed_video)
+    if not cap.isOpened():
+        st.error("動画の読み込みに失敗しました")
     else:
-        st.error("⚠️ 処理された動画が再生できませんでした。")
+        # FPS取得（なければ25fps固定）
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps <= 0 or np.isnan(fps):
+            fps = 25
+        delay = 1.0 / fps
+
+        frame_placeholder = st.empty()  # フレーム表示用プレースホルダー
+
+        st.info("動画処理中（実際はフレームを連続表示しています）...")
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # MediaPipeなどの処理をここに入れることが可能
+            # 例：frame = your_mediapipe_process_function(frame)
+
+            # BGR→RGB変換（OpenCVはBGR、StreamlitはRGB）
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # 画面に表示
+            frame_placeholder.image(frame)
+
+            time.sleep(delay)  # 元動画のフレームレートで待機
+
+        cap.release()
+        st.success("動画の再生が終了しました。")
