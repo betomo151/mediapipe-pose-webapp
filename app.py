@@ -5,39 +5,43 @@ import numpy as np
 from io import BytesIO
 
 def process_video(video_file):
-    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     tfile.write(video_file.read())
+    tfile.flush()
+
     cap = cv2.VideoCapture(tfile.name)
 
-    width = int(cap.get(3))
-    height = int(cap.get(4))
+    if not cap.isOpened():
+        st.error("動画の読み込みに失敗しました。")
+        return None
+
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 0:
+        fps = 25  # fallback
 
-    # 書き出し先：Memory buffer (一時ファイルにしてから読むのが確実)
-    out_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    out = cv2.VideoWriter(out_file.name, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    # より互換性の高いコーデック（環境による）
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
 
+    out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    out = cv2.VideoWriter(out_file.name, fourcc, fps, (width, height))
+
+    frame_count = 0
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        # 例：MediaPipeの処理がここに入る
         out.write(frame)
+        frame_count += 1
 
     cap.release()
     out.release()
 
-    # 再生できるように読み込み直す
-    video_bytes = open(out_file.name, 'rb').read()
-    return video_bytes
+    if frame_count == 0:
+        st.error("フレームが書き込まれませんでした。動画が空か、読み込みエラーの可能性があります。")
+        return None
 
-st.title("MediaPipe Pose 動画処理 WebApp")
+    with open(out_file.name, "rb") as f:
+        return f.read()
 
-uploaded_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov"])
-
-if uploaded_file is not None:
-    st.video(uploaded_file)
-    st.info("ポーズ検出処理中...")
-    result_video = process_video(uploaded_file)
-    st.success("✅ポーズ検出完了！以下の動画で確認できます。")
-    st.video(result_video)
