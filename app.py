@@ -7,6 +7,7 @@ def process_video(video_file):
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     tfile.write(video_file.read())
     tfile.flush()
+    tfile.close()  # 重要
 
     cap = cv2.VideoCapture(tfile.name)
     if not cap.isOpened():
@@ -16,13 +17,11 @@ def process_video(video_file):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    if not isinstance(fps, (int, float)) or fps <= 1:
+        fps = 25  # fallback
 
-    # ⚠️ fpsの安全確認（型チェックとゼロ回避）
-    if not isinstance(fps, (int, float)) or fps == 0:
-        fps = 25
-
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 'avc1'よりもmp4vの方が互換性あり
     out = cv2.VideoWriter(out_file.name, fourcc, fps, (width, height))
 
     frame_count = 0
@@ -37,20 +36,8 @@ def process_video(video_file):
     out.release()
 
     if frame_count == 0:
-        st.error("フレームが書き込まれませんでした。")
+        st.error("動画が空です。")
         return None
 
     with open(out_file.name, "rb") as f:
         return f.read()
-
-# UI
-st.title("MediaPipe Pose 動画処理 WebApp")
-
-uploaded_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov"])
-if uploaded_file is not None:
-    st.video(uploaded_file)
-    st.info("ポーズ検出処理中...")
-    result_video = process_video(uploaded_file)
-    if result_video:
-        st.success("✅ポーズ検出完了！以下の動画で確認できます。")
-        st.video(result_video)
