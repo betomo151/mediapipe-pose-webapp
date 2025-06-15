@@ -19,19 +19,23 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
     # アップロードされたファイルを一時的に保存
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
         tfile.write(video_file_buffer.read())
-        temp_input_path = tfile.name
+        temp_input_path = tfile.name # 入力動画の一時パスを取得
+        st.write(f"デバッグ: 入力一時ファイルパス: {temp_input_path}") # デバッグ用
 
     # 動画キャプチャオブジェクトの初期化
     cap = cv2.VideoCapture(temp_input_path)
     if not cap.isOpened():
         st.error("動画ファイルが開けません。ファイルが破損しているか、対応していない形式かもしれません。")
-        os.unlink(temp_input_path)
+        os.unlink(temp_input_path) # エラー時にも一時ファイルを削除
+        st.write("デバッグ: cap.isOpened() が False でした。") # デバッグ用
         return None
 
     # 動画の元のプロパティを取得
     original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+
+    st.write(f"デバッグ: 元の動画サイズ: {original_width}x{original_height}, FPS: {fps}") # デバッグ用
 
     # FPSが不正な値の場合にデフォルトを設定
     if fps <= 0 or np.isnan(fps):
@@ -49,19 +53,30 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
     if height % 2 != 0:
         height -= 1
 
+    st.write(f"デバッグ: 処理対象サイズ: {width}x{height}, 最終FPS: {fps}") # デバッグ用
+
     # 出力ファイルの一時パスを生成
     temp_output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+    st.write(f"デバッグ: 出力一時ファイルパス: {temp_output_path}") # デバッグ用
 
     # VideoWriterの初期化
-    # H.264コーデック ('avc1') を使用。Streamlit CloudではFFmpegのインストールが必要。
+    # H.264コーデック ('avc1') を使用。Streamlit CloudではFFmpegのインストールが必須。
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    # もしH.264で動作しない場合は、以下のMJPGも試してください（ファイルサイズは大きくなります）
+    # fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
     out = cv2.VideoWriter(temp_output_path, fourcc, fps, (width, height))
 
     if not out.isOpened():
-        st.error(f"出力ファイルを作成できません。コーデック '{'avc1'}' がサポートされていないか、システムにFFmpegが適切にインストールされていない可能性があります。")
+        st.error(
+            f"出力ファイルを作成できません。コーデック '{'avc1'}' がサポートされていないか、"
+            "システムにFFmpegが適切にインストールされていない可能性があります。"
+            "Streamlit Cloudのデプロイログをご確認ください。"
+        )
         cap.release()
         os.unlink(temp_input_path)
+        # temp_output_pathは作成失敗のため削除不要
+        st.write(f"デバッグ: out.isOpened() が False でした。fourcc: {fourcc}") # デバッグ用
         return None
 
     # MediaPipe Poseモデルのコンテキストマネージャ
@@ -71,7 +86,6 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
         if total_frames == 0:
             total_frames = 1 # 0除算を防ぐ
 
-        # 進捗バーの表示
         progress_text = st.empty()
         progress_bar = st.progress(0)
 
@@ -127,6 +141,7 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
 
     # 出力一時ファイルを削除
     os.unlink(temp_output_path)
+    st.write("デバッグ: すべての一時ファイルを削除しました。") # デバッグ用
 
     return processed_video_bytes
 
