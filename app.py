@@ -46,21 +46,16 @@ def process_video_with_pose(video_file_buffer):
     temp_output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
 
     # VideoWriterの初期化
-    # ここをH.264コーデックに変更します
-    # 'avc1' (H.264) はウェブブラウザで広くサポートされています
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
-    # 他の一般的なコーデックの候補:
-    # 'mp4v': MPEG-4 (一部環境では動作するが、より互換性の高いH.264を推奨)
-    # 'XVID': Xvid (DivX互換)
-    # 'MJPG': Motion JPEG (大きなファイルサイズになる傾向がある)
+    # H.264コーデック ('avc1') がサポートされない場合、MJPGを試す
+    # fourcc = cv2.VideoWriter_fourcc(*'avc1') # H.264
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG') # MJPG (Motion JPEG) を試す
 
     out = cv2.VideoWriter(temp_output_path, fourcc, fps, (width, height))
 
     if not out.isOpened():
-        st.error(f"出力ファイルを作成できません。コーデック '{'avc1'}' がサポートされていないか、システムにFFmpegが適切にインストールされていない可能性があります。")
+        st.error(f"出力ファイルを作成できません。コーデック '{'MJPG'}' がサポートされていないか、システムにFFmpegが適切にインストールされていない可能性があります。")
         cap.release()
         os.unlink(temp_input_path)
-        # temp_output_pathは作成失敗のため削除不要
         return None
 
     # MediaPipe Poseモデルのコンテキストマネージャ
