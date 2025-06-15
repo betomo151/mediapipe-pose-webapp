@@ -16,18 +16,23 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
     target_resolution: (width, height)のタプルで指定された場合、その解像度で処理します。
                        Noneの場合、元の動画の解像度を使用します。
     """
+    # デバッグ情報：OpenCVのビルド情報を表示
+    # これによりFFmpegがサポートされているかを確認できます (出力が非常に長い場合があります)
+    st.write("デバッグ: OpenCV ビルド情報 (FFmpegサポート確認):")
+    st.code(cv2.getBuildInformation())
+
     # アップロードされたファイルを一時的に保存
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
         tfile.write(video_file_buffer.read())
-        temp_input_path = tfile.name # 入力動画の一時パスを取得
-        st.write(f"デバッグ: 入力一時ファイルパス: {temp_input_path}") # デバッグ用
+        temp_input_path = tfile.name
+        st.write(f"デバッグ: 入力一時ファイルパス: {temp_input_path}")
 
     # 動画キャプチャオブジェクトの初期化
     cap = cv2.VideoCapture(temp_input_path)
     if not cap.isOpened():
         st.error("動画ファイルが開けません。ファイルが破損しているか、対応していない形式かもしれません。")
-        os.unlink(temp_input_path) # エラー時にも一時ファイルを削除
-        st.write("デバッグ: cap.isOpened() が False でした。") # デバッグ用
+        os.unlink(temp_input_path)
+        st.write("デバッグ: cap.isOpened() が False でした。")
         return None
 
     # 動画の元のプロパティを取得
@@ -35,7 +40,7 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
     original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    st.write(f"デバッグ: 元の動画サイズ: {original_width}x{original_height}, FPS: {fps}") # デバッグ用
+    st.write(f"デバッグ: 元の動画サイズ: {original_width}x{original_height}, FPS: {fps}")
 
     # FPSが不正な値の場合にデフォルトを設定
     if fps <= 0 or np.isnan(fps):
@@ -53,30 +58,56 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
     if height % 2 != 0:
         height -= 1
 
-    st.write(f"デバッグ: 処理対象サイズ: {width}x{height}, 最終FPS: {fps}") # デバッグ用
+    st.write(f"デバッグ: 処理対象サイズ: {width}x{height}, 最終FPS: {fps}")
 
     # 出力ファイルの一時パスを生成
     temp_output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-    st.write(f"デバッグ: 出力一時ファイルパス: {temp_output_path}") # デバッグ用
+    st.write(f"デバッグ: 出力一時ファイルパス: {temp_output_path}")
 
-    # VideoWriterの初期化
-    # H.264コーデック ('avc1') を使用。Streamlit CloudではFFmpegのインストールが必須。
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
-    # もしH.264で動作しない場合は、以下のMJPGも試してください（ファイルサイズは大きくなります）
-    # fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    # VideoWriterの初期化を試行（まずH.264、次にMJPG）
+    # H.264 (avc1) はウェブ互換性が高いが、環境のFFmpeg依存性が高い
+    # MJPGはファイルサイズは大きいが、多くの環境で動作しやすい
+    
+    # FourCCコードを可読な文字列に変換するヘルパー関数
+    def get_fourcc_string(fourcc_int):
+        return "".join([chr((fourcc_int >> 8 * i) & 0xFF) for i in range(4)])
 
-    out = cv2.VideoWriter(temp_output_path, fourcc, fps, (width, height))
+    tried_codecs = [
+        cv2.VideoWriter_fourcc(*'avc1'),  # H.264
+        cv2.VideoWriter_fourcc(*'MJPG'),  # Motion JPEG
+        # 他に試すなら 'XVID' など
+    ]
+    
+    out = None
+    selected_fourcc = None
 
-    if not out.isOpened():
+    for fourcc_candidate in tried_codecs:
+        current_codec_str = get_fourcc_string(fourcc_candidate)
+        st.write(f"デバッグ: コーデック '{current_codec_str}' で初期化を試行中...")
+        out = cv2.VideoWriter(temp_output_path, fourcc_candidate, fps, (width, height))
+        
+        if out.isOpened():
+            selected_fourcc = fourcc_candidate
+            st.info(f"情報: コーデック '{current_codec_str}' で出力ファイルを正常に初期化しました。")
+            break
+        else:
+            st.warning(f"警告: コーデック '{current_codec_str}' で出力ファイルを作成できませんでした。")
+            if out: # outが生成されていれば解放
+                out.release()
+            # 失敗した場合は一時ファイルを削除しておく
+            if os.path.exists(temp_output_path):
+                os.unlink(temp_output_path)
+            # 次のコーデックを試す前に新しい一時ファイルを生成 (重要)
+            temp_output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+            st.write(f"デバッグ: 新しい出力一時ファイルパス (再試行用): {temp_output_path}")
+
+    if selected_fourcc is None:
         st.error(
-            f"出力ファイルを作成できません。コーデック '{'avc1'}' がサポートされていないか、"
-            "システムにFFmpegが適切にインストールされていない可能性があります。"
-            "Streamlit Cloudのデプロイログをご確認ください。"
+            "利用可能なコーデックが見つかりませんでした。"
+            "システムにFFmpegが適切にインストールされているか、Streamlit Cloudのデプロイログをご確認ください。"
         )
         cap.release()
         os.unlink(temp_input_path)
-        # temp_output_pathは作成失敗のため削除不要
-        st.write(f"デバッグ: out.isOpened() が False でした。fourcc: {fourcc}") # デバッグ用
         return None
 
     # MediaPipe Poseモデルのコンテキストマネージャ
@@ -141,7 +172,7 @@ def process_video_with_pose(video_file_buffer, target_resolution=None):
 
     # 出力一時ファイルを削除
     os.unlink(temp_output_path)
-    st.write("デバッグ: すべての一時ファイルを削除しました。") # デバッグ用
+    st.write("デバッグ: すべての一時ファイルを削除しました。")
 
     return processed_video_bytes
 
@@ -152,7 +183,7 @@ st.markdown("---")
 
 st.sidebar.header("動画処理設定")
 resolution_options = {
-    "元の解像度": None, # 元の解像度で処理
+    "元の解像度": None,
     "640x360 (低画質/高速)": (640, 360),
     "854x480 (中画質/標準)": (854, 480),
     "1280x720 (高画質/低速)": (1280, 720)
@@ -165,7 +196,7 @@ selected_resolution_label = st.sidebar.selectbox(
 selected_resolution = resolution_options[selected_resolution_label]
 
 st.warning("⚠️ Streamlit Cloudの無料枠にはリソース制限があります。処理が途中で止まる場合は、より低い「処理解像度」を選択するか、短い動画をお試しください。")
-st.info("💡 **FFmpegのインストール確認**: GitHubリポジトリのルートに `packages.txt` ファイルを作成し、その中に `ffmpeg` と記述して再デプロイしているかご確認ください。これが解決策の鍵となります。")
+st.info("💡 **FFmpegとOpenCVの互換性**: GitHubリポジトリのルートに `packages.txt` ファイルを作成し、その中に `ffmpeg` と記述して再デプロイしているかご確認ください。**また、`requirements.txt`で `opencv-python` を `opencv-python-headless` に変更すると、サーバー環境での互換性が向上する場合があります。**")
 
 
 uploaded_file = st.file_uploader("動画をアップロードしてください", type=["mp4", "mov"])
@@ -174,9 +205,7 @@ if uploaded_file is not None:
     st.video(uploaded_file)
     st.info("特徴点抽出中・・・しばらくお待ちください。")
 
-    # 処理中のスピナーを表示
     with st.spinner('動画を処理中...'):
-        # 選択された解像度を関数に渡す
         processed_video_bytes = process_video_with_pose(uploaded_file, selected_resolution)
 
     if processed_video_bytes is not None:
